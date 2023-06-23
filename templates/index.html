@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #121212;
+            --secondary-bg: #1E1E1E;
+            --text-color: #D1D1D1;
+            --button-color: #3F51B5;
+            --button-hover: #303F9F;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            color: var(--text-color);
+            background-color: var(--primary-bg);
+            padding: 2rem;
+        }
+
+        h1, h2 {
+            text-align: center;
+        }
+
+        .card {
+            background: var(--secondary-bg);
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 24px 0 rgba(0,0,0,0.12);
+        }
+
+        .sensor-data h3 {
+            margin-bottom: 1rem;
+        }
+
+        #map {
+            width: 100%;
+            height: 400px;
+            border-radius: 8px;
+        }
+
+        button {
+            display: block;
+            width: max-content;
+            margin: 1rem auto;
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            color: var(--text-color);
+            background-color: var(--button-color);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            box-shadow:  20px 20px 60px #0a0a0a, -20px -20px 60px #2e2e2e;
+        }
+
+        button:hover {
+            background-color: var(--button-hover);
+        }
+
+        .material-icons {
+            vertical-align: bottom;
+        }
+.charts-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+.chart-container {
+    flex: 0 0 calc(50% - 2rem); /* -2rem is the total left and right margin */
+    margin: 1rem;
+}
+
+#temperatureChart, #humidityChart, #accelerationChart, #gyroscopeChart {
+    height: 200px; /* Adjust to desired height */
+}
+
+/* The Modal (background) */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1; /* Sit on top */
+    padding-top: 100px; /* Location of the box */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgb(0,0,0); /* Fallback color */
+    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+/* Modal Content */
+.modal-content {
+    background-color: #9c1414;
+    margin: auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+}
+
+/* The Close Button */
+.close {
+    color: #aaaaaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+    color: #000;
+    text-decoration: none;
+    cursor: pointer;
+}
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.min.js" crossorigin="anonymous"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBwP8UgQnG3wS5nMCQZEmjldj2RaZnrGe0&libraries=geometry,places&callback=initMap"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Cargo Tracking</title>
+</head>
+<body>
+    <h2><span class="material-icons">sensors</span> Location Data</h2>
+    <div class="card sensor-data">
+        <h3><span class="material-icons">place</span> Latitude: <span id="latitude">{{ latitude }}</span></h3>
+        <h3><span class="material-icons">place</span> Longitude: <span id="longitude">{{ longitude }}</span></h3>
+        <h3><span class="material-icons">thermostat</span> Temperature: <span id="temperature">{{ temperature }}</span></h3>
+        <h3><span class="material-icons">water</span> Humidity: <span id="humidity">{{ humidity }}</span></h3>
+        <h3><span class="material-icons">speed</span> Acceleration: <span id="acceleration">{{ acceleration }}</span></h3>
+        <h3>
+            <span class="material-icons">sensors</span> Gyroscope:
+            <span id="gyroX">X: {{ gyro.x }}</span>,
+            <span id="gyroY">Y: {{ gyro.y }}</span>,
+            <span id="gyroZ">Z: {{ gyro.z }}</span>
+        </h3>
+    <div id="map" class="card"></div>
+    <div class="charts-container">
+        <div class="chart-container">
+            <h2>Temperature Graph</h2>
+            <div class="card chart-card">
+                <canvas id="temperatureChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>Humidity Graph</h2>
+            <div class="card chart-card">
+                <canvas id="humidityChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>Acceleration Graph</h2>
+            <div class="card chart-card">
+                <canvas id="accelerationChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>Gyroscope Graph</h2>
+            <div class="card chart-card">
+                <canvas id="gyroscopeChart"></canvas>
+            </div>
+        </div>
+    </div>
+    </div>
+    <!-- The Modal -->
+<div id="myModal" class="modal">
+
+  <!-- Modal content -->
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <p id="modalText">Some text in the Modal..</p>
+  </div>
+
+</div>
+    <script type="text/javascript" charset="utf-8">
+    var socket = io.connect('http://' + document.domain + ':' + location.port + '/socket.io/');
+
+    var map;
+    var directionsService;
+    var directionsRenderer;
+
+    // Sensor data history
+    var temperatureData = [];
+    var humidityData = [];
+    var accelerationData = [];
+    var gyroXData = [];
+    var gyroYData = [];
+    var gyroZData = [];
+
+    // Thresholds
+    var tempThreshold = 50.0;
+    var humidityThreshold = 80.0; //istege gore degistir
+    var tempNegThreshold = 10.0;
+    var humidityNegThreshold = 10.0;
+
+    var lastUpdateTime = Date.now();
+
+// Chart contexts
+    var temperatureCtx = document.getElementById('temperatureChart').getContext('2d');
+    var humidityCtx = document.getElementById('humidityChart').getContext('2d');
+    var accelerationCtx = document.getElementById('accelerationChart').getContext('2d');
+    var gyroscopeCtx = document.getElementById('gyroscopeChart').getContext('2d');
+
+    // Initialize charts
+    var initialLabels = [];
+
+    var temperatureChart = new Chart(temperatureCtx, {
+        type: 'line',
+        data: {labels: initialLabels, datasets: [{data: temperatureData, label: 'Temperature', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1}]
+        }
+    });
+    var humidityChart = new Chart(humidityCtx, {
+        type: 'line',
+        data: {labels: initialLabels, datasets: [{data: humidityData, label: 'Humidity', borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 1}]
+        }
+    });
+
+    var accelerationChart = new Chart(accelerationCtx, {
+        type: 'line',
+        data: {labels: initialLabels, datasets: [{data: accelerationData, label: 'Acceleration', borderColor: 'rgba(153, 102, 255, 1)', borderWidth: 1}]
+        }
+    });
+
+    var gyroscopeChart = new Chart(gyroscopeCtx, {
+        type: 'line',
+        data: {labels: initialLabels, datasets: [
+                {data: gyroXData, label: 'Gyro X', borderColor: 'rgba(255, 159, 64, 1)', borderWidth: 1},
+                {data: gyroYData, label: 'Gyro Y', borderColor: 'rgba(255, 205, 86, 1)', borderWidth: 1},
+                {data: gyroZData, label: 'Gyro Z', borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 1}]
+        }
+    });
+
+    function initMap() {
+        var lat = parseFloat('{{ latitude }}'.replace(',', '.'));
+        var lng = parseFloat('{{ longitude }}'.replace(',', '.'));
+        map = new google.maps.Map(document.getElementById('map'), {
+            center: {lat: lat, lng: lng},
+            zoom: 8
+        });
+
+        directionsService = new google.maps.DirectionsService();
+        directionsRenderer = new google.maps.DirectionsRenderer({
+            map: map
+        });
+
+
+    }
+
+    socket.on('connect', function() {
+        console.log("Connected to the server");
+        socket.emit('client_connected', {data: 'Client connected'});
+    });
+    socket.on('server_response', function(msg) {
+        document.getElementById("messages").innerHTML += '<p>' + msg.data + '</p>';
+    });
+
+
+    function updateMap(latitude, longitude) {
+    var newLatLng = new google.maps.LatLng(latitude, longitude);
+    if (directionsRenderer.getDirections() && directionsRenderer.getDirections().routes[0]) {
+        var lastLatLng = directionsRenderer.getDirections().routes[0].legs[0].end_location;
+
+        var newDirectionsRenderer = new google.maps.DirectionsRenderer({
+            map: map,
+            preserveViewport: true
+        });
+
+        var request = {
+            origin: lastLatLng,
+            destination: newLatLng,
+            travelMode: 'DRIVING'
+        };
+        directionsService.route(request, function(response, status) {
+            if (status == 'OK') {
+                newDirectionsRenderer.setDirections(response);
+            }
+        });
+
+        directionsRenderer = newDirectionsRenderer;
+    } else {
+        var request = {
+            origin: newLatLng,
+            destination: newLatLng,
+            travelMode: 'DRIVING'
+        };
+        directionsService.route(request, function(response, status) {
+            if (status == 'OK') {
+                directionsRenderer.setDirections(response);
+            }
+        });
+    }
+}
+
+
+    function sendMessage() {
+        socket.emit('client_message', {data: 'Hello, server!'});
+    }
+    function updateSensorData() {
+        fetch('/get_sensor_data')
+            .then(response => response.json())
+            .then(data => {
+                lastUpdateTime = Date.now();
+                console.log("Sensor data received:", data);
+                document.querySelector("#latitude").innerText = parseFloat(data.latitude).toFixed(3);
+                document.querySelector("#longitude").innerText = parseFloat(data.longitude).toFixed(3);
+                document.querySelector("#temperature").innerText = parseFloat(data.temperature).toFixed(1);
+                document.querySelector("#humidity").innerText = parseFloat(data.humidity).toFixed(1);
+                document.querySelector("#acceleration").innerText = parseFloat(data.acceleration).toFixed(1);
+                document.querySelector("#gyroX").innerText = "X: " + parseFloat(data.gyro.x).toFixed(1);
+                document.querySelector("#gyroY").innerText = "Y: " + parseFloat(data.gyro.y).toFixed(1);
+                document.querySelector("#gyroZ").innerText = "Z: " + parseFloat(data.gyro.z).toFixed(1);
+                updateMap(parseFloat(data.latitude), parseFloat(data.longitude));
+
+                  // Temperature
+        temperatureData.push(parseFloat(data.temperature));
+        console.log('Updating temperature data:', temperatureData);
+        temperatureChart.data.labels.push(new Date().toLocaleTimeString());
+
+        if (temperatureData.length > 100) {
+            temperatureData.shift();
+            temperatureChart.data.labels.shift();
+        }
+        temperatureChart.update();
+
+  // Humidity
+        humidityData.push(parseFloat(data.humidity));
+        console.log('Updating humidity data:', humidityData);
+        humidityChart.data.labels.push(new Date().toLocaleTimeString());
+        // only remove the first label when the length of the array is greater than 20
+        if (humidityData.length > 100) {
+            humidityData.shift();
+            humidityChart.data.labels.shift();
+        }
+        humidityChart.update();
+
+        // Acceleration
+        accelerationData.push(parseFloat(data.acceleration));
+        console.log('Updating acceleration data:', accelerationData);
+        accelerationChart.data.labels.push(new Date().toLocaleTimeString());
+        // only remove the first label when the length of the array is greater than 20
+        if (accelerationData.length > 100) {
+            accelerationData.shift();
+            accelerationChart.data.labels.shift();
+        }
+        accelerationChart.update();
+
+// Gyroscope
+        gyroXData.push(parseFloat(data.gyro.x));
+        gyroYData.push(parseFloat(data.gyro.y));
+        gyroZData.push(parseFloat(data.gyro.z));
+        console.log('Updating gyroscope data:', gyroXData, gyroYData, gyroZData);
+        gyroscopeChart.data.labels.push(new Date().toLocaleTimeString());
+
+
+        if (gyroXData.length > 100) {
+            gyroXData.shift();
+            gyroscopeChart.data.labels.shift();
+        }
+        if (gyroYData.length > 100) {
+            gyroYData.shift();
+        }
+        if (gyroZData.length > 100) {
+            gyroZData.shift();
+        }
+
+        gyroscopeChart.update();
+
+
+        // Check thresholds
+        if(parseFloat(data.temperature) > tempThreshold){
+            showAlert("Temperature has exceeded the threshold");
+        }
+        if(parseFloat(data.humidity) > humidityThreshold){
+            showAlert("Humidity has exceeded the threshold");
+        }
+
+                if(parseFloat(data.temperature) < tempNegThreshold){
+            showAlert("Temperature has fallen below the threshold");
+        }
+        if(parseFloat(data.humidity) < humidityNegThreshold){
+            showAlert("Humidity has fallen below the threshold");
+        }
+            })
+            .catch(error => {
+                console.error("Error fetching sensor data:", error);
+            });
+    }
+
+        function checkConnection() {
+        if (Date.now() - lastUpdateTime > 16000) {  // 16 seconds
+            showAlert("No data received from simulator in last 16 seconds. Check your connection.");
+        }
+    }
+           function showAlert(message) {
+            var modal = document.getElementById("myModal");
+            var span = document.getElementsByClassName("close")[0];
+            document.getElementById("modalText").innerText = message;
+
+
+            span.onclick = function() {
+                modal.style.display = "none";
+            }
+
+
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            }
+
+            modal.style.display = "block";
+        }
+    updateSensorData();
+
+    // Update her 8sn
+    setInterval(updateSensorData, 8000);
+    setInterval(checkConnection, 16000);
+    updateMap(lat, lng);
+
+</script>
+
+</body>
+</html>

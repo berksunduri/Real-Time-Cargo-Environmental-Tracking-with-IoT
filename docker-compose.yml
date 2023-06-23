@@ -1,0 +1,64 @@
+version: '3'
+services:
+  zoo1:
+    image: confluentinc/cp-zookeeper:7.3.2
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka1:
+    image: confluentinc/cp-kafka:7.3.2
+    volumes:
+      - ./init-scripts/kafka:/docker-entrypoint-initdb.d
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zoo1:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zoo1
+
+  init-kafka:
+    image: confluentinc/cp-kafka:7.3.2
+    depends_on:
+      - kafka1
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # blocks until kafka is reachable
+      kafka-topics --bootstrap-server kafka1:9092 --list
+
+      echo -e 'Creating kafka topics'
+      /usr/bin/kafka-topics --create --if-not-exists --topic sensor_data --bootstrap-server kafka1:9092 --partitions 1 --replication-factor 1
+
+      echo -e 'Successfully created the following topics:'
+      kafka-topics --bootstrap-server kafka1:9092 --list
+      "
+
+  cassandra:
+    image: cassandra:latest
+    volumes:
+      - ./init-scripts/cassandra:/docker-entrypoint-initdb.d
+    ports:
+      - "9042:9042"
+
+  sample-data:
+    image: cassandra:latest
+    depends_on:
+      - cassandra
+    restart: "no"
+    entrypoint: ["/sample_data.sh"]
+    volumes:
+      - ./sample_data.sh:/sample_data.sh
+
+  flask-app:
+    build: .
+    volumes:
+      - .:/app
+    ports:
+      - "5000:5000"
+    depends_on:
+      - kafka1
+      - cassandra

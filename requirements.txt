@@ -1,0 +1,6 @@
+Flask
+flask_socketio
+rx
+kafka-python
+cassandra-driver
+zstandard
