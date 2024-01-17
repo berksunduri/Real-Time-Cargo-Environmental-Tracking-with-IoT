@@ -1,4 +1,5 @@
 SUMMARY
+
 The Internet of Things is an emerging paradigm in recent years and can be applied to a
 variety of fields such as sports, farming, e-health and advertising. Real-time courier and cargo
 tracking using the Internet of Things is an active area of development, and while significant
